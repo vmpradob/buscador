@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -12,13 +14,11 @@ import (
 
 const prettyPrintValue = `false`
 
-const oauthKey = `AIzaSyC2as3n3-616_w1GMwzhEL6JDa3HumoiUA`
+const oauthKey = ``
 
-//const oauthKey = `AIzaSyDcYUOG2yK1DX_CWPGe-WrlhKhQqzWQy3I`
 
-const engine = `004560508768852172973:ymzun4smzzu`
+const engine = ``
 
-//const engine = `017576662512468239146:omuauf_lfve`
 
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -43,8 +43,8 @@ func main() {
 
 	r.Use(CORSMiddleware())
 
-	r.GET("/buscar/:search", func(c *gin.Context) {
-		result := search(c.Param("search"))
+	r.GET("/buscar/:search/:tipo", func(c *gin.Context) {
+		result := search(c.Param("search"), c.Param("tipo"))
 		hola, _err := json.Marshal(result)
 		if _err != nil {
 			panic(_err)
@@ -54,28 +54,34 @@ func main() {
 	r.Run() // listen and serve on 0.0.0.0:8080
 }
 
-func search(searchable string) Page {
-	googleSearch := makeRequest(replaceSpace(searchable))
+func search(searchable, tipo string) Page {
+	googleSearch := makeRequest(replaceSpace(searchable), tipo)
 	var response Page
 	response.Context = googleSearch.Context
 	response.Kind = googleSearch.Kind
 	response.Queries = googleSearch.Queries
 	response.SearchInformation = googleSearch.SearchInformation
 	response.URL = googleSearch.URL
-
 	for _, element := range googleSearch.Items {
-		resource := makeFilterRequest(element.Snippet)
-		if resource.Categories[0].Name == "technology" || resource.Categories[1].Name == "technology" || resource.Categories[2].Name == "technology" {
-			response.Items = append(response.Items, element)
+		resource := makeFilterRequest(replaceSpace(element.Snippet))
+		if len(resource.Categories) > 0 {
+			if resource.Categories[0].Name == "technology" {
+				response.Items = append(response.Items, element)
+			}
 		}
 	}
-	response.SearchInformation.FormattedTotalResults = string(len(response.Items))
-	response.SearchInformation.TotalResults = string(len(response.Items))
 	return response
 }
 
-func makeRequest(query string) Page {
-	resp, err := http.Get("https://www.googleapis.com/customsearch/v1?q=" + query + "&cx=" + engine + "&key=" + oauthKey + "&prettyPrint=" + prettyPrintValue)
+func makeRequest(query, tipo string) Page {
+	link := "https://www.googleapis.com/customsearch/v1?q=" + query + "&cx=" + engine + "&key=" + oauthKey + "&prettyPrint=" + prettyPrintValue
+
+	if tipo == "img" {
+		link = link + "&searchType=image"
+	}
+
+	resp, err := http.Get(link)
+
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -88,18 +94,25 @@ func makeRequest(query string) Page {
 }
 
 func makeFilterRequest(query string) TextClasification {
-	resp, err := http.Get("https://api.dandelion.eu/datatxt/cl/v1/?token=420239a12b934cc39193d9c1fa79958a&model=54cf2e1c-e48a-4c14-bb96-31dc11f84eac&text=" + query)
+	fmt.Println(url.QueryEscape(query))
+	req, _ := http.NewRequest("GET", "https://api.dandelion.eu/datatxt/cl/v1/", nil)
+	q := req.URL.Query()
+	q.Add("token", "e2870fbc4dfa49e48a889c9681526aa4")
+	q.Add("model", "54cf2e1c-e48a-4c14-bb96-31dc11f84eac")
+	q.Add("text", replaceSpace(query))
+	req.URL.RawQuery = q.Encode()
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	structure := new(TextClasification)
+	err = json.NewDecoder(resp.Body).Decode(structure)
 	if err != nil {
 		panic(err)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
-	var structure TextClasification
-	if err := json.Unmarshal(body, &structure); err != nil {
-		panic(err)
-	}
-	return structure
+	return *structure
 }
 
 func replaceSpace(s string) string {
-	return strings.Replace(s, " ", "+", -1)
+	s = strings.Replace(s, " ", "+", -1)
+	return strings.Replace(s, "/", "", -1)
+
 }

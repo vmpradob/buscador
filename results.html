@@ -1,0 +1,60 @@
+﻿<!DOCTYPE html>
+<html>
+     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular.min.js"></script>
+     <link rel="stylesheet" type="text/css" href="css/styles.css">
+
+     <body>
+
+<div ng-app="myApp" ng-controller="myCtrl"> 
+     <img src="img/google_logo.png" alt="logo_google" id="logo_min">
+     <br>
+
+     <form ng-submit="buscar(input_search_min, web, imagenes)">
+       <input type="text" id="input_search_min" name="input_search_min" ng-model="input_search_min">
+       <input type="submit" value="Buscar" id="btn_search_min">
+
+     </form>
+     <h1>WEB</h1>
+     <div class="ficha" ng-repeat="ficha in fichas">
+          <a href="{{ficha.link}}" target="_blank">
+               <h3 class="title">{{ficha.title}}</h3>
+               <p class="displayLink">{{ficha.displayLink}}</p>
+          </a>
+          <span class="snippet">{{ficha.snippet}}</span>
+     </div><br>
+
+     <h1>IMAGENES</h1>
+     <div class="ficha" ng-repeat="image in images">  
+      <a href="{{image.link}}"> <img src="{{image.link}}" alt="{{title}}"> </a>
+     </div>
+
+</div>
+
+<script>
+var app = angular.module('myApp', []);
+app.controller('myCtrl', function($scope, $http) {
+  $scope.buscar = function (query){
+    $http.get("http://localhost:8080/buscar/"+query.replace(/\s/gi, "+")+'/web')
+    .then(function(response) {
+        var resultados = JSON.parse(response.data);
+        $scope.fichas = resultados.items;
+        console.log(resultados);  
+    });
+
+    $http.get("http://localhost:8080/buscar/"+query.replace(/\s/gi, "+")+'/img')
+    .then(function(response) {
+        var resultados = JSON.parse(response.data);
+        $scope.images = resultados.items;
+        console.log(resultados);  
+    });
+};
+});
+</script>
+
+</body>
+</html>
+
+
+
+
+  
